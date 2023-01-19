@@ -5,6 +5,7 @@ from nltk.stem import SnowballStemmer
 from nltk.corpus import stopwords
 import nltk
 import time
+import json
 #nltk.download('stopwords')
 #nltk.download('punkt')
 # Authenticate with Twitter API
@@ -74,8 +75,16 @@ class TweetProcessor:
 
         # Create table to store tweet tokens
         c.execute('''CREATE TABLE IF NOT EXISTS tweet_tokens
-                    (tweet_id INTEGER PRIMARY KEY, created_at TIMESTAMP, user_name TEXT, user_location TEXT, user_followers INTEGER, retweet_count INTEGER, favorite_count INTEGER, sentiment TEXT, tokens TEXT, hashtags TEXT)'''
-                )
+                    (tweet_id INTEGER PRIMARY KEY,
+                    created_at TIMESTAMP, 
+                    user_name TEXT, 
+                    user_location TEXT, 
+                    user_followers INTEGER, 
+                    retweet_count INTEGER, 
+                    favorite_count INTEGER, 
+                    sentiment TEXT, 
+                    tokens TEXT, 
+                    hashtags TEXT)''')
 
         # Apply tokenization and stemming to tweets
         stemmer = SnowballStemmer("english")
@@ -84,27 +93,22 @@ class TweetProcessor:
             tokens = word_tokenize(tweet.full_text)
             # Apply stemming to tokens
             stemmed_tokens = [stemmer.stem(token) for token in tokens]
+            toto = ','.join(stemmed_tokens)
             # Extract Media
             media_list = tweet.entities.get("media", [])
             # Extract Hashtags
             hashtags = tweet.entities.get("hashtags", [])
-            if len(hashtags) > 0:
-                hashtags = [hashtag["text"] for hashtag in hashtags]
+            hashtags = json.dumps(hashtags)
             # Extract Sentiment
-            #create an instance of the SentimentAnalyser
-           # sentiment_analyzer = SentimentAnalyser(db_name)
-           # #train the model
-           # sentiment_analyzer.train_model()
-           # #call the predict_sentiment method on the instance of the class
-           # sentiment = sentiment_analyzer.predict_sentiment(stemmed_tokens)
-           
+            sentiment = 10
             # Save tokens to SQLite database
-            c.execute("INSERT INTO tweet_tokens VALUES (?,?,?,?,?,?,?,?,?,?)",
-                    (tweet.id, tweet.created_at, tweet.user.screen_name,
-                    tweet.user.location, tweet.user.followers_count,
-                    tweet.retweet_count, tweet.favorite_count, "lol",
-                    ' '.join(stemmed_tokens), hashtags))
-            conn.commit()
+            tweet_id = tweet.id
+            c.execute("SELECT * FROM tweet_tokens WHERE tweet_id=?", (tweet_id,))
+            data = c.fetchone()
+            if data is None:
+                c.execute("INSERT INTO tweet_tokens VALUES (?,?,?,?,?,?,?,?,?,?)",
+                        (tweet.id, tweet.created_at, tweet.user.screen_name, tweet.user.location, tweet.user.followers_count, tweet.retweet_count, tweet.favorite_count, sentiment, ' '.join(stemmed_tokens), hashtags))
+                conn.commit()
 
         # Close SQLite connection
         conn.close()
@@ -175,8 +179,12 @@ class SentimentAnalyser:
 
 tp = TweetProcessor(consumer_key, consumer_secret, access_token,
                     access_token_secret)
-trend = 'NLP'
-tweets = tp.search_tweets(trend, 1)
+trend = 'GPT-3'
+tweets = tp.search_tweets(trend, 20)
 for tweet in tweets:
     tweet_info = tp.preprocess_tweet(tweet)
     tp.store_tweet_tokens(tweets, 'tweet_tokens.db')
+
+
+#            if len(hashtags) > 0:
+#                hashtags = [hashtag["text"] for hashtag in hashtags]
